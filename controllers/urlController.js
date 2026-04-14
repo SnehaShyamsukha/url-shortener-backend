@@ -2,7 +2,7 @@ const shortid = require("shortid");
 const Url = require("../models/Url");
 const validUrl = require("valid-url");
 
-// CREATE URL
+// CREATE URL (AUTH)
 exports.createUrl = async (req, res) => {
   try {
     const { originalUrl } = req.body;
@@ -11,17 +11,15 @@ exports.createUrl = async (req, res) => {
       return res.status(400).json({ msg: "URL is required" });
     }
 
-    //  VALIDATE
     if (!validUrl.isUri(originalUrl)) {
       return res.status(400).json({ msg: "Invalid URL" });
     }
 
-    // PREVENT DUPLICATE
     let existing = await Url.findOne({ originalUrl, user: req.user.id });
 
     if (existing) {
       return res.json({
-        shortUrl: `${process.env.BASE_URL}/api/url/${existing.shortId}`,
+        shortUrl: `${process.env.BASE_URL}/${existing.shortId}`,
         _id: existing._id,
         clicks: existing.clicks
       });
@@ -32,11 +30,13 @@ exports.createUrl = async (req, res) => {
     const newUrl = await Url.create({
       originalUrl,
       shortId,
-      user: req.user.id
+      user: req.user.id,
+      clicks: 0,
+      analytics: []
     });
 
     res.json({
-      shortUrl: `${process.env.BASE_URL}/api/url/${shortId}`,
+      shortUrl: `${process.env.BASE_URL}/${shortId}`,
       _id: newUrl._id,
       clicks: 0
     });
@@ -47,15 +47,52 @@ exports.createUrl = async (req, res) => {
   }
 };
 
+
+// PUBLIC SHORTEN (NO AUTH)
+exports.shortenUrl = async (req, res) => {
+  try {
+    const { originalUrl } = req.body;
+
+    if (!originalUrl) {
+      return res.status(400).json({ msg: "URL is required" });
+    }
+
+    if (!validUrl.isUri(originalUrl)) {
+      return res.status(400).json({ msg: "Invalid URL" });
+    }
+
+    const shortId = shortid.generate();
+
+    const newUrl = await Url.create({
+      originalUrl,
+      shortId,
+      clicks: 0,
+      analytics: []
+    });
+
+    res.json({
+      shortUrl: `${process.env.BASE_URL}/${shortId}`
+    });
+
+  } catch (err) {
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
+
 // REDIRECT + TRACK
 exports.redirectUrl = async (req, res) => {
   try {
-    const url = await Url.findOne({ shortId: req.params.shortId });
+    const { shortId } = req.params;
 
-    if (!url) return res.status(404).send("Not found");
+    const url = await Url.findOne({ shortId });
 
-    // TRACK
+    if (!url) {
+      return res.status(404).send("URL not found ❌");
+    }
+
     url.clicks += 1;
+
     url.analytics.push({
       ip: req.ip,
       userAgent: req.headers["user-agent"]
@@ -63,12 +100,14 @@ exports.redirectUrl = async (req, res) => {
 
     await url.save();
 
-    res.redirect(url.originalUrl);
+    return res.redirect(url.originalUrl);
 
   } catch (err) {
-    res.status(500).send("Error");
+    console.error(err);
+    res.status(500).send("Server Error ❌");
   }
 };
+
 
 // GET USER + SHARED URLS
 exports.getUrls = async (req, res) => {
@@ -85,6 +124,7 @@ exports.getUrls = async (req, res) => {
     res.status(500).json({ msg: "Server error" });
   }
 };
+
 
 // SHARE URL
 exports.shareUrl = async (req, res) => {
