@@ -8,15 +8,17 @@ const urlRoutes = require("./routes/urlRoutes");
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// CORS
+app.use(cors({
+  origin: "https://url-shortener-frontend-khaki-zeta.vercel.app",
+  credentials: true
+}));
+
 app.use(express.json());
 
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/url", urlRoutes);
-
-app.use("/", urlRoutes);
 
 // Test route
 app.get("/", (req, res) => {
