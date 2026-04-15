@@ -5,6 +5,7 @@ const cors = require("cors");
 
 const authRoutes = require("./routes/authRoutes");
 const urlRoutes = require("./routes/urlRoutes");
+const { redirectUrl } = require("./controllers/urlController");
 
 const app = express();
 
@@ -24,6 +25,8 @@ app.use("/api/url", urlRoutes);
 app.get("/", (req, res) => {
   res.send("Server is running 🚀");
 });
+
+app.get("/:shortId", redirectUrl);
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
